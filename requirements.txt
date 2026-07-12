@@ -1,0 +1,8 @@
+easyocr
+opencv-python-headless
+pdf2image
+openpyxl
+ipywidgets
+pandas
+numpy
+Pillow
