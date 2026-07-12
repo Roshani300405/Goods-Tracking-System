@@ -1,11 +1,11 @@
 # Goods-Tracking-System
-# 📄 Invoice Information Extractor
+#  Invoice Information Extractor
 
 An AI-powered Invoice Information Extractor built using **Python**, **EasyOCR**, and **Google Colab**. This application automatically extracts key information from invoice images and PDF files, including invoice details and line items, and exports the results to JSON and Excel.
 
 ---
 
-## 🚀 Features
+## Features
 
 - Upload one or more invoice images or PDF files
 - Automatic OCR using EasyOCR
@@ -29,7 +29,7 @@ An AI-powered Invoice Information Extractor built using **Python**, **EasyOCR**,
 
 ---
 
-## 🛠️ Technologies Used
+##  Technologies Used
 
 - Python
 - Google Colab
@@ -82,7 +82,7 @@ pip install -r requirements.txt
 
 ---
 
-## ▶️ Usage
+ Usage
 
 1. Open the notebook in **Google Colab**.
 2. Run all cells.
@@ -90,10 +90,6 @@ pip install -r requirements.txt
 4. Click **Process Invoices**.
 5. View extracted information.
 6. Download the results as JSON or Excel.
-
----
-
-## 📊 Output
 
 The application extracts:
 
@@ -110,9 +106,7 @@ The application extracts:
 - Line Item Description
 - Line Item Amount
 
----
 
-## 📸 Screenshots
 
 Add screenshots of:
 
@@ -122,11 +116,7 @@ Add screenshots of:
 - Extracted Line Items
 - Download Buttons
 
-Store them inside the `screenshots/` folder.
-
----
-
-## 🎯 Future Improvements
+Future Improvements
 
 - Support handwritten invoices
 - Improve table extraction
@@ -134,16 +124,6 @@ Store them inside the `screenshots/` folder.
 - Deploy as a web application
 - Cloud storage integration
 
----
 
-## 👩‍💻 Author
 
-**Vadarevu Roshani**
 
-B.Tech – Artificial Intelligence and Data Science
-
----
-
-## ⭐ Support
-
-If you found this project useful, please consider giving it a ⭐ on GitHub.
