@@ -414,8 +414,7 @@ display(ui)# ============================================================
 # ============================================================
 
 # ---------- 1. INSTALL (runs once) ----------
-!pip install -q easyocr opencv-python-headless pdf2image openpyxl ipywidgets
-!apt-get -qq install -y poppler-utils > /dev/null
+
 
 # ---------- 2. IMPORTS ----------
 import cv2
