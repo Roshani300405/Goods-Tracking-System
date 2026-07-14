@@ -169,10 +169,35 @@ TOTAL_AMOUNT_PATTERNS = [
     r"(?<!sub)(?<!sub-)(?<!sub\s)\btotal\b\s*[:\-]?\s*[₹$]?\s*(Rs\.?)?\s*([\d,]+\.?\d*)",
 ]
 
-# Tax lines are often split across multiple rows (e.g. CGST + SGST on Indian
-# invoices). Find every occurrence and sum them, rather than taking only the
-# first match — otherwise tax_amount (and therefore total_amount) undercounts.
-TAX_LINE_PATTERN = r"(?:cgst|sgst|igst|gst|vat|tax)\s*(?:amount)?\s*[:\-]?\s*[₹$]?\s*(?:Rs\.?)?\s*([\d,]+\.?\d*)\s*%?"
+# Tax lines are often formatted as "CGST @9% 72.00" or "SGST 9% : Rs. 72.00".
+# A plain regex grabs whichever number comes right after the keyword — which
+# is frequently the RATE (9), not the AMOUNT (72.00). So tax extraction is
+# done per-line below: find lines mentioning a tax keyword, strip out any
+# "<number>%" (the rate) first, then take the last remaining number on that
+# line as the actual tax amount. Split-tax invoices (CGST + SGST) get summed.
+TAX_KEYWORD_RE = re.compile(r"\b(?:cgst|sgst|igst|gst|vat|tax)\b", re.IGNORECASE)
+PERCENT_NUMBER_RE = re.compile(r"[\d,]+\.?\d*\s*%")
+AMOUNT_TOKEN_RE = re.compile(r"[\d,]+\.\d{1,2}|[\d,]{2,}")
+
+def extract_tax_amount(lines):
+    total_tax = 0.0
+    found = False
+    for ln in lines:
+        if not TAX_KEYWORD_RE.search(ln):
+            continue
+        if re.search(r"\bgstin\b", ln, re.IGNORECASE):
+            continue  # GSTIN numbers aren't tax amounts
+        # Drop rate expressions like "9%", "18 %" so they can't be mistaken
+        # for the amount.
+        stripped = PERCENT_NUMBER_RE.sub("", ln)
+        amounts = [clean_amount(tok) for tok in AMOUNT_TOKEN_RE.findall(stripped)]
+        amounts = [a for a in amounts if a is not None]
+        if amounts:
+            # Amount is virtually always the last number on the line
+            # (label, then rate already stripped, then amount).
+            total_tax += amounts[-1]
+            found = True
+    return round(total_tax, 2) if found else None
 
 SECTION_KEYWORDS = r"(?:bill\s*to|ship\s*to|invoice|gstin|total|date|subtotal|tax|hsn|qty|amount|item|description)"
 
@@ -224,11 +249,8 @@ def extract_fields(lines):
             data[field] = m.group(1).strip()
 
     # ---- Tax amount: sum every tax line found (CGST + SGST + IGST etc.),
-    # not just the first match, or split-tax invoices undercount the total.
-    tax_matches = re.findall(TAX_LINE_PATTERN, text, re.IGNORECASE)
-    tax_values = [clean_amount(v) for v in tax_matches]
-    tax_values = [v for v in tax_values if v is not None]
-    data["tax_amount"] = round(sum(tax_values), 2) if tax_values else None
+    # ignoring rate percentages like "9%" so only the actual amount is added.
+    data["tax_amount"] = extract_tax_amount(lines)
 
     # ---- Total amount: try specific keywords first (grand total, amount
     # due, balance due, ...), then a bare "total" that can never match
