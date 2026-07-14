@@ -158,9 +158,21 @@ FIELD_PATTERNS = {
     "due_date":       r"(?:due\s*date|payment\s*due)\s*[:\-]?\s*(\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4})",
     "gstin":          r"\b([0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[0-9A-Z]{1}[Z]{1}[0-9A-Z]{1})\b",
     "subtotal":       r"(?:sub\s*-?\s*total)\s*[:\-]?\s*[₹$]?\s*(Rs\.?)?\s*([\d,]+\.?\d*)",
-    "tax_amount":     r"(?:(?:cgst|sgst|igst|gst|vat|tax)\s*(?:amount)?)\s*[:\-]?\s*[₹$]?\s*(Rs\.?)?\s*([\d,]+\.?\d*)",
-    "total_amount":   r"(?:grand\s*total|net\s*(?:payable|amount)|amount\s*due|total\s*amount|invoice\s*total|balance\s*due|total)\s*[:\-]?\s*[₹$]?\s*(Rs\.?)?\s*([\d,]+\.?\d*)",
+    # NOTE: total_amount is handled separately below (needs a subtotal-exclusion
+    # lookbehind + a fallback search order), not via a single regex here.
 }
+
+# Tried in order — first hit wins. The bare "total" alt has a negative
+# lookbehind so it can NEVER match inside "Sub Total"/"Subtotal".
+TOTAL_AMOUNT_PATTERNS = [
+    r"(?:grand\s*total|net\s*(?:payable|amount)|amount\s*due|total\s*amount|invoice\s*total|balance\s*due)\s*[:\-]?\s*[₹$]?\s*(Rs\.?)?\s*([\d,]+\.?\d*)",
+    r"(?<!sub)(?<!sub-)(?<!sub\s)\btotal\b\s*[:\-]?\s*[₹$]?\s*(Rs\.?)?\s*([\d,]+\.?\d*)",
+]
+
+# Tax lines are often split across multiple rows (e.g. CGST + SGST on Indian
+# invoices). Find every occurrence and sum them, rather than taking only the
+# first match — otherwise tax_amount (and therefore total_amount) undercounts.
+TAX_LINE_PATTERN = r"(?:cgst|sgst|igst|gst|vat|tax)\s*(?:amount)?\s*[:\-]?\s*[₹$]?\s*(?:Rs\.?)?\s*([\d,]+\.?\d*)\s*%?"
 
 SECTION_KEYWORDS = r"(?:bill\s*to|ship\s*to|invoice|gstin|total|date|subtotal|tax|hsn|qty|amount|item|description)"
 
@@ -206,10 +218,39 @@ def extract_fields(lines):
         m = re.search(pattern, text, re.IGNORECASE)
         if not m:
             data[field] = None
-        elif field in ("subtotal", "tax_amount", "total_amount"):
+        elif field == "subtotal":
             data[field] = clean_amount(m.group(2))
         else:
             data[field] = m.group(1).strip()
+
+    # ---- Tax amount: sum every tax line found (CGST + SGST + IGST etc.),
+    # not just the first match, or split-tax invoices undercount the total.
+    tax_matches = re.findall(TAX_LINE_PATTERN, text, re.IGNORECASE)
+    tax_values = [clean_amount(v) for v in tax_matches]
+    tax_values = [v for v in tax_values if v is not None]
+    data["tax_amount"] = round(sum(tax_values), 2) if tax_values else None
+
+    # ---- Total amount: try specific keywords first (grand total, amount
+    # due, balance due, ...), then a bare "total" that can never match
+    # inside "Subtotal" thanks to the negative lookbehind.
+    total_amount = None
+    for pattern in TOTAL_AMOUNT_PATTERNS:
+        m = re.search(pattern, text, re.IGNORECASE)
+        if m:
+            total_amount = clean_amount(m.group(2))
+            if total_amount is not None:
+                break
+    data["total_amount"] = total_amount
+
+    # ---- Reconciliation fallback: if the OCR'd total is missing, or is
+    # suspiciously <= subtotal (a sign the regex actually grabbed the
+    # subtotal / only part of the tax), recompute it as subtotal + tax.
+    data["total_amount_source"] = "ocr"
+    if data.get("subtotal") is not None and data.get("tax_amount") is not None:
+        computed_total = round(data["subtotal"] + data["tax_amount"], 2)
+        if data["total_amount"] is None or data["total_amount"] <= data["subtotal"]:
+            data["total_amount"] = computed_total
+            data["total_amount_source"] = "computed (subtotal + tax)"
 
     for field, pattern in SECTION_PATTERNS.items():
         m = re.search(pattern, text, re.IGNORECASE | re.DOTALL)
@@ -233,7 +274,7 @@ def process_invoice_bytes(reader, name, raw_bytes):
 SUMMARY_COLS = [
     "source_file", "invoice_number", "invoice_date", "due_date",
     "seller_name", "buyer_name", "ship_to", "gstin",
-    "subtotal", "tax_amount", "total_amount",
+    "subtotal", "tax_amount", "total_amount", "total_amount_source",
 ]
 
 # ============================================================
