@@ -4,6 +4,8 @@
 An AI-powered Invoice Information Extractor built using **Python**, **EasyOCR**, and **Google Colab**. This application automatically extracts key information from invoice images and PDF files, including invoice details and line items, and exports the results to JSON and Excel.
 
 ---
+## 🚀 Live Demo
+https://zw5psbyvr5f2yxw59pydis.streamlit.app/
 
 ## Features
 
@@ -105,16 +107,6 @@ The application extracts:
 - Total Amount
 - Line Item Description
 - Line Item Amount
-
-
-
-Add screenshots of:
-
-- Upload Interface
-- Processing
-- Summary Table
-- Extracted Line Items
-- Download Buttons
 
 Future Improvements
 
